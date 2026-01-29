@@ -1,10 +1,10 @@
-# Claude Auto-Allow ⚡
+# ClaudeHammer ⚡🔨
 
 **Stop babysitting Claude Code permission prompts.**
 
 Claude Code asks for permission constantly—even when you've already said "always allow." This interrupts your flow and defeats the purpose of an AI coding assistant.
 
-Claude Auto-Allow uses Hammerspoon to automatically click "Allow" and "Yes" buttons in your terminal. It's like having a very patient intern who just clicks "Yes" for you.
+ClaudeHammer uses Hammerspoon to automatically click "Allow" and "Yes" buttons in your terminal. It's like having a very patient intern who just clicks "Yes" for you.
 
 ## Safety First
 
@@ -29,13 +29,13 @@ Claude Auto-Allow uses Hammerspoon to automatically click "Allow" and "Yes" butt
 # Requires Homebrew
 brew install --cask hammerspoon
 
-# Install the spoon
-curl -sL https://raw.githubusercontent.com/mattbeane/ClaudeAutoAllow/main/install.sh | bash
+# Install ClaudeHammer
+curl -sL https://raw.githubusercontent.com/mattbeane/claudehammer/main/install.sh | bash
 ```
 
 ## Manual Install
 
-1. [Download the latest release](https://github.com/mattbeane/ClaudeAutoAllow/releases)
+1. [Download the latest release](https://github.com/mattbeane/claudehammer/releases)
 2. Double-click `ClaudeAutoAllow.spoon.zip` to extract
 3. Double-click `ClaudeAutoAllow.spoon` to install
 4. Add to `~/.hammerspoon/init.lua`:
@@ -145,7 +145,7 @@ spoon.ClaudeAutoAllow.config.pollIntervalSec = 0.5
 ```bash
 # Clone to Spoons directory
 cd ~/.hammerspoon/Spoons
-git clone https://github.com/mattbeane/ClaudeAutoAllow.git ClaudeAutoAllow.spoon
+git clone https://github.com/mattbeane/claudehammer.git ClaudeAutoAllow.spoon
 
 # Edit files and reload Hammerspoon to test
 ```

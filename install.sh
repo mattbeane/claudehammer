@@ -1,6 +1,6 @@
 #!/bin/bash
-# ClaudeAutoAllow Installer
-# Usage: curl -sL https://raw.githubusercontent.com/mattbeane/ClaudeAutoAllow/main/install.sh | bash
+# ClaudeHammer Installer
+# Usage: curl -sL https://raw.githubusercontent.com/mattbeane/claudehammer/main/install.sh | bash
 
 set -e
 
@@ -11,7 +11,8 @@ NC='\033[0m' # No Color
 
 echo ""
 echo "╔═══════════════════════════════════════════╗"
-echo "║       Claude Auto-Allow Installer         ║"
+echo "║         ClaudeHammer Installer            ║"
+echo "║     Auto-click Claude Code prompts        ║"
 echo "╚═══════════════════════════════════════════╝"
 echo ""
 
@@ -49,11 +50,18 @@ if [ -f "$SCRIPT_DIR/init.lua" ]; then
     cp -r "$SCRIPT_DIR" "$SPOON_DIR"
 else
     # Download from GitHub
-    echo "Downloading ClaudeAutoAllow..."
+    echo "Downloading ClaudeHammer..."
     TEMP_DIR=$(mktemp -d)
-    curl -sL "https://github.com/mattbeane/ClaudeAutoAllow/archive/main.zip" -o "$TEMP_DIR/spoon.zip"
-    unzip -q "$TEMP_DIR/spoon.zip" -d "$TEMP_DIR"
-    mv "$TEMP_DIR/ClaudeAutoAllow-main/ClaudeAutoAllow.spoon" "$SPOON_DIR"
+    curl -sL "https://github.com/mattbeane/claudehammer/archive/main.zip" -o "$TEMP_DIR/repo.zip"
+    unzip -q "$TEMP_DIR/repo.zip" -d "$TEMP_DIR"
+
+    # The repo itself is the spoon
+    mkdir -p "$SPOON_DIR"
+    cp "$TEMP_DIR/claudehammer-main/"*.lua "$SPOON_DIR/"
+    cp "$TEMP_DIR/claudehammer-main/LICENSE" "$SPOON_DIR/" 2>/dev/null || true
+    cp "$TEMP_DIR/claudehammer-main/README.md" "$SPOON_DIR/" 2>/dev/null || true
+    mkdir -p "$SPOON_DIR/assets"
+
     rm -rf "$TEMP_DIR"
 fi
 
@@ -65,17 +73,17 @@ LOAD_LINE='hs.loadSpoon("ClaudeAutoAllow"):start()'
 
 if [ -f "$INIT_FILE" ]; then
     if grep -q "ClaudeAutoAllow" "$INIT_FILE"; then
-        echo -e "${YELLOW}ClaudeAutoAllow already in init.lua${NC}"
+        echo -e "${YELLOW}ClaudeHammer already in init.lua${NC}"
     else
         echo "" >> "$INIT_FILE"
-        echo "-- Claude Auto-Allow: auto-click permission prompts" >> "$INIT_FILE"
+        echo "-- ClaudeHammer: auto-click permission prompts" >> "$INIT_FILE"
         echo "$LOAD_LINE" >> "$INIT_FILE"
         echo -e "${GREEN}✓ Added to init.lua${NC}"
     fi
 else
     echo "-- Hammerspoon config" > "$INIT_FILE"
     echo "" >> "$INIT_FILE"
-    echo "-- Claude Auto-Allow: auto-click permission prompts" >> "$INIT_FILE"
+    echo "-- ClaudeHammer: auto-click permission prompts" >> "$INIT_FILE"
     echo "$LOAD_LINE" >> "$INIT_FILE"
     echo -e "${GREEN}✓ Created init.lua${NC}"
 fi
