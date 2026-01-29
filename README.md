@@ -121,6 +121,17 @@ A: ClaudeHammer won't click it. Buttons containing words like "Delete", "Purchas
 2. Click the menubar icon → check that it says "✓ Enabled"
 3. If problems persist, click the Hammerspoon icon → Console to see error messages
 
+## Windows?
+
+ClaudeHammer is macOS-only. Hammerspoon doesn't exist on Windows, and the accessibility APIs are completely different.
+
+If you're a Windows developer who wants to build a port, the likely approaches are:
+- **AutoHotkey** - most similar UX, can detect windows and click buttons
+- **PowerShell + UI Automation** - Windows has built-in UI Automation APIs
+- **Python + pywinauto** - cross-platform library for GUI automation
+
+PRs welcome. The core logic (allowlist, blocklist, audit logging) could be shared; it's the OS integration that needs rebuilding.
+
 ## Uninstall
 
 ```bash
