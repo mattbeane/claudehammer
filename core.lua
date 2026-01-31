@@ -23,6 +23,7 @@ M.appWatcher = nil
 M.lastClickTime = 0
 M.lastButtonCount = 0
 M.stableHighCount = 0  -- Track the "normal" button count when no dialog
+M.lastWakeupClick = 0  -- Cooldown for Electron wake-up clicks
 
 -- Dependencies (loaded in init)
 local safety = nil
@@ -220,7 +221,8 @@ end
 
 --- Search a window's UI tree for buttons and click safe ones
 --- @param win userdata Hammerspoon window object
-local function scanAndClickButtons(win)
+--- @param skipWakeClick boolean If true, skip the wake-up click (used after we've already woken the tree)
+local function scanAndClickButtons(win, skipWakeClick)
     local spoon = M.spoon
     local log = spoon and spoon.logger
 
@@ -263,6 +265,10 @@ local function scanAndClickButtons(win)
         if log then log.d("  -> no axWin for " .. appName) end
         return
     end
+
+    -- NOTE: Electron wake-up click was removed - it caused cursor hijacking issues.
+    -- The background timer's focus steal already wakes the accessibility tree.
+    -- If Claude's tree is empty when focused, user may need to click once manually.
 
     -- Get window title for context checking
     local windowTitle = win:title()
@@ -338,15 +344,20 @@ local function scanAndClickButtons(win)
 
     -- STRATEGY: Look for "Allow" button text directly rather than counting buttons.
     -- The permission dialog has a button with title "Allow once ⌘ ⏎" or similar.
+    -- IMPORTANT: Title must START with "Allow" and be SHORT to avoid false positives
+    -- from content displayed in the chat area.
     local foundAllowButton = nil
     for _, button in ipairs(buttons) do
         local title = button:attributeValue("AXTitle") or ""
-        local titleLower = title:lower()
-        -- Match "Allow once" or "Allow always" but not "Auto-approve..." toggle
-        if titleLower:find("allow once") or titleLower:find("allow always") then
-            foundAllowButton = button
-            debugLog("Found Allow button: " .. title)
-            break
+        -- Must be short (real button text is ~20 chars max) and start with "Allow"
+        if #title < 30 and title:match("^Allow") then
+            local titleLower = title:lower()
+            -- Match "Allow once" or "Allow always" but not "Auto-approve..." toggle
+            if titleLower:find("allow once") or titleLower:find("allow always") then
+                foundAllowButton = button
+                debugLog("Found Allow button: " .. title)
+                break
+            end
         end
     end
 
