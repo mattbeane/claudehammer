@@ -19,11 +19,11 @@ M.windowFilter = nil
 M.pollTimer = nil
 M.backgroundTimer = nil
 M.backgroundSearching = false  -- Prevent stacking async searches
+M.lastBackgroundStart = 0  -- Track when background search started (for timeout)
 M.appWatcher = nil
 M.lastClickTime = 0
 M.lastButtonCount = 0
 M.stableHighCount = 0  -- Track the "normal" button count when no dialog
-M.lastWakeupClick = 0  -- Cooldown for Electron wake-up clicks
 
 -- Dependencies (loaded in init)
 local safety = nil
@@ -377,13 +377,16 @@ local function scanAndClickButtons(win, skipWakeClick)
             app:activate()
         end
 
-        -- Short delay to ensure activation completes
-        hs.timer.doAfter(0.1, function()
-            -- Use eventtap.keyStroke which is more reliable than AppleScript for Electron apps
-            hs.eventtap.keyStroke({"cmd"}, "return", 0)
-            if log then log.i("=== Cmd+Return sent ===") end
-            debugLog("=== Cmd+Return sent ===")
-        end)
+        -- Short delay to ensure activation completes (synchronous for background scans)
+        hs.timer.usleep(150000)  -- 0.15 seconds
+
+        -- Use eventtap.keyStroke which is more reliable than AppleScript for Electron apps
+        hs.eventtap.keyStroke({"cmd"}, "return", 0)
+        if log then log.i("=== Cmd+Return sent ===") end
+        debugLog("=== Cmd+Return sent ===")
+
+        -- Give the keystroke time to be processed before focus switches
+        hs.timer.usleep(200000)  -- 0.2 seconds
 
         M.lastClickTime = hs.timer.secondsSinceEpoch() * 1000
 
@@ -457,16 +460,38 @@ function M.setupWatchers()
         end
     end)
 
-    -- BACKGROUND POLLING: Check Claude windows even when not focused
-    -- Strategy: Briefly focus Claude to expose accessibility tree, scan, then restore previous app
-    M.backgroundTimer = hs.timer.doEvery(2.0, function()
-        if not M.spoon or not M.spoon.enabled then return end
-        if M.backgroundSearching then return end  -- Don't stack searches
+    -- BACKGROUND POLLING: Gentle focus-steal every 30 seconds
+    -- Briefly activate Claude to check for dialogs, then restore previous app.
+    -- This is a compromise: less disruptive than 2-second polling but still
+    -- catches dialogs when you're working in other apps.
+    local backgroundInterval = 30  -- seconds
+    debugLog("Setting up background timer with interval: " .. backgroundInterval .. "s")
+    M.backgroundTimer = hs.timer.doEvery(backgroundInterval, function()
+        debugLog("Background timer fired")
+        if not M.spoon or not M.spoon.enabled then
+            debugLog("Background: Skipping - spoon disabled")
+            return
+        end
+
+        -- Safety: reset backgroundSearching if stuck for more than 10 seconds
+        if M.backgroundSearching then
+            local now = hs.timer.secondsSinceEpoch()
+            local elapsed = now - (M.lastBackgroundStart or 0)
+            if elapsed > 10 then
+                debugLog("Background: Resetting stuck flag (was stuck for " .. math.floor(elapsed) .. "s)")
+                M.backgroundSearching = false
+            else
+                debugLog("Background: Skipping - already searching")
+                return
+            end
+        end
+
+        M.lastBackgroundStart = hs.timer.secondsSinceEpoch()
 
         local claudeApp = hs.application.get("Claude")
         if not claudeApp then return end
 
-        -- Skip if Claude is already focused (main poll handles it)
+        -- Skip if Claude is already focused (foreground poll handles it)
         local frontApp = hs.application.frontmostApplication()
         if frontApp and frontApp:name() == "Claude" then return end
 
@@ -474,39 +499,39 @@ function M.setupWatchers()
         if #wins == 0 then return end
 
         M.backgroundSearching = true
-        debugLog("Background: Brief focus steal starting")
+        debugLog("Background: 30s focus-steal check starting")
 
-        -- Remember current app to restore later
+        -- Remember current app
         local previousApp = frontApp
 
-        -- Briefly activate Claude to expose accessibility tree
+        -- Briefly activate Claude
         claudeApp:activate()
 
-        -- Give Electron more time to expose webview accessibility tree
-        hs.timer.doAfter(0.6, function()
-            debugLog("Background: Claude activated, scanning...")
+        -- Use usleep instead of doAfter (doAfter callbacks weren't firing reliably)
+        hs.timer.usleep(500000)  -- 0.5 seconds
 
-            -- Re-fetch windows AFTER activation (important!)
+        -- Wrap in pcall to prevent errors from killing the timer
+        local ok, err = pcall(function()
             local freshWins = claudeApp:allWindows()
-            debugLog("Background: Found " .. #freshWins .. " windows after activation")
-
-            -- Scan all Claude windows
-            for i, win in ipairs(freshWins) do
+            debugLog("Background: Scanning " .. #freshWins .. " windows")
+            for _, win in ipairs(freshWins) do
                 scanAndClickButtons(win)
             end
-
-            -- Restore previous app after a brief delay
-            hs.timer.doAfter(0.15, function()
-                if previousApp then
-                    debugLog("Background: Restoring " .. previousApp:name())
-                    previousApp:activate()
-                end
-                M.backgroundSearching = false
-            end)
         end)
+        if not ok then
+            debugLog("Background: ERROR during scan: " .. tostring(err))
+        end
+
+        -- Restore previous app
+        hs.timer.usleep(100000)  -- 0.1 seconds
+        if previousApp then
+            debugLog("Background: Restoring " .. previousApp:name())
+            previousApp:activate()
+        end
+        M.backgroundSearching = false
     end)
 
-    -- Watch for app launches to catch new terminal instances
+    -- Watch for app launches to catch new target app instances
     M.appWatcher = hs.application.watcher.new(function(appName, eventType, app)
         if eventType == hs.application.watcher.launched then
             if isTargetApp(appName) then
